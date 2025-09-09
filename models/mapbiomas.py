@@ -1,18 +1,70 @@
+import os
 import rasterio as rst
-import requests
-from io import BytesIO
+import numpy as np
 
+from rasterio.mask import mask
+from rasterio import DatasetReader
+from geopandas import GeoDataFrame
+from pandas import DataFrame, read_csv
+
+
+MAPBIOMAS_TIF_URL = 'https://storage.googleapis.com/mapbiomas-public/initiatives/brasil/collection_10/lulc/coverage/brazil_coverage_{0}.tif'
+MAPBIOMAS_CSV_URL = 'https://brasil.mapbiomas.org/wp-content/uploads/sites/4/2025/08/Codigos-da-legenda-colecao-10.zip'
 
 class MapBiomas:
     def __init__(self):
-        self.url = 'https://storage.googleapis.com/mapbiomas-public/initiatives/brasil/collection_10/lulc/coverage/brazil_coverage_{0}.tif'
+        self.url = MAPBIOMAS_TIF_URL
+        self.df_dict = read_csv(
+            MAPBIOMAS_CSV_URL, 
+            encoding='utf-8', 
+            sep='\t', 
+            compression='zip', 
+            engine='python'
+        )
 
-    def lulc_by_year(self, year: int) -> rst.DatasetReader:
-        return rst.open(self.url.format(year))
-    
-    def download_lulc(self, year: int, path: str) -> None:
-        r = requests.get(self.url.format(year))
-        r.raise_for_status()
-        with open(path, 'wb') as f:
-            f.write(r.content)
-        
+    @property
+    def classes(self) -> DataFrame:
+        df = self.df_dict.copy()
+        natural_classes = (
+            "Forest",
+            "Forest Formation",
+            "Savanna Formation",
+            "Mangrove",
+            "Floodable Forest",
+            "Wooded Sandbank Vegetation",
+            "Herbaceous and Shrubby Vegetation",
+            "Wetland",
+            "Grassland",
+            "Herbaceous Sandbank Vegetation"
+        )
+        condition = df['Description'].isin(natural_classes)
+        df['cover_landuse'] = np.where(condition, "cobertura_natural", "uso_solo")
+        if not os.path.exists('data/cd_legenda_mapbiomas.csv'):
+            df.to_csv('data/cd_legenda_mapbiomas.csv')
+        return df
+
+    def clip_by_year(self, year: int, gdf: GeoDataFrame, filename: str = None):
+        with rst.open(self.url.format(year)) as src:
+            src: DatasetReader
+            geom = gdf.to_crs(src.crs).geometry
+            out_img, out_transf = mask(
+                src,
+                geom,
+                crop=True,
+                all_touched=True,
+                filled=False
+            )
+            out_meta = src.meta.copy()
+            out_meta.update({
+                "height": out_img.shape[1],
+                "width": out_img.shape[2],
+                "transform": out_transf
+            })
+            if filename:
+                with rst.open(filename, "w", **out_meta) as clipped_src:
+                    clipped_src.write(out_img)
+
+if __name__ == '__main__':
+    mp = MapBiomas()
+    df = mp.classes
+    print(df.head())
