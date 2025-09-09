@@ -5,7 +5,10 @@ import os
 import rasterio
 
 from rasterio.mask import mask
+from rasterio.warp import reproject
+
 import geopandas as gpd
+import numpy as np
 
 from tqdm import tqdm
 
@@ -18,8 +21,8 @@ if __name__ == '__main__':
     # RS
     rs_gdf = gpkg.read_layer('rs_buffer_poly')
     # TI's
-    gdf = gpkg.read_layer('ti_inside_pampa_aoi')
-    gdf.to_crs(4326, inplace=True)
+    gdf = gpkg.read_layer('se_rs_clip')
+    # gdf.to_crs(4326, inplace=True)
 
     # LULC Mapbiomas (1985-2023)
     for year in YEARS:
@@ -34,8 +37,8 @@ if __name__ == '__main__':
     HUMAN_CLASSES = mpbiomas_classes['Class_ID'][mpbiomas_classes['cover_landuse'] == 'uso_solo'].values
     
     results = []
-    with rasterio.open('data/ti_lulc_1985.tif') as src_1985:
-        with rasterio.open('data/ti_lulc_2023.tif') as src_2023:
+    with rasterio.open('data/ti_lulc_1985_reproject.tif') as src_1985:
+        with rasterio.open('data/ti_lulc_2023_reproject.tif') as src_2023:
             for idx, row in tqdm(gdf.iterrows()):
                 geom = [row.geometry]
                 try:
@@ -112,4 +115,4 @@ if __name__ == '__main__':
     results_gdf.crs = gdf.crs  # Set the CRS from the original territory data
     
     # print(results_gdf.head())
-    results_gdf.to_file("data/teste.geojson")
+    results_gdf.to_file("data/se_rs_clip.geojson")
