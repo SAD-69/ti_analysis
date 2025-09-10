@@ -6,10 +6,13 @@ from rasterio.mask import mask
 from rasterio import DatasetReader
 from geopandas import GeoDataFrame
 from pandas import DataFrame, read_csv
+from functools import cached_property
 
 
 MAPBIOMAS_TIF_URL = 'https://storage.googleapis.com/mapbiomas-public/initiatives/brasil/collection_10/lulc/coverage/brazil_coverage_{0}.tif'
 MAPBIOMAS_CSV_URL = 'https://brasil.mapbiomas.org/wp-content/uploads/sites/4/2025/08/Codigos-da-legenda-colecao-10.zip'
+CLASS_ID_COL = "Class_ID"
+DESCRIPTION_COL = "Description"
 
 class MapBiomas:
     def __init__(self):
@@ -22,7 +25,7 @@ class MapBiomas:
             engine='python'
         )
 
-    @property
+    @cached_property
     def classes(self) -> DataFrame:
         df = self.df_dict.copy()
         natural_classes = (
@@ -42,6 +45,18 @@ class MapBiomas:
         if not os.path.exists('data/cd_legenda_mapbiomas.csv'):
             df.to_csv('data/cd_legenda_mapbiomas.csv')
         return df
+    
+    @cached_property
+    def class_names(self) -> dict:
+        return dict(zip(self.classes[CLASS_ID_COL], self.classes[DESCRIPTION_COL]))
+    
+    @cached_property
+    def natural_classes(self) -> np.ndarray:
+        return self.classes[CLASS_ID_COL][self.classes['cover_landuse'] == 'cobertura_natural'].values
+    
+    @cached_property
+    def human_classes(self) -> np.ndarray:
+        return self.classes[CLASS_ID_COL][self.classes['cover_landuse'] != 'cobertura_natural'].values
 
     def clip_by_year(self, year: int, gdf: GeoDataFrame, filename: str = None):
         with rst.open(self.url.format(year)) as src:
@@ -66,5 +81,4 @@ class MapBiomas:
 
 if __name__ == '__main__':
     mp = MapBiomas()
-    df = mp.classes
-    print(df.head())
+    print(mp.class_names)

@@ -28,13 +28,7 @@ if __name__ == '__main__':
         lu_lc_path = f'data/ti_lulc_{year}.tif'
         if not os.path.exists(lu_lc_path):
             map_biomas.clip_by_year(year, rs_gdf, lu_lc_path)
-    
-    mpbiomas_classes = map_biomas.classes
 
-    CLASS_NAMES = dict(zip(mpbiomas_classes["Class_ID"], mpbiomas_classes["Description"]))
-    NATURAL_CLASSES = mpbiomas_classes['Class_ID'][mpbiomas_classes['cover_landuse'] == 'cobertura_natural'].values
-    HUMAN_CLASSES = mpbiomas_classes['Class_ID'][mpbiomas_classes['cover_landuse'] == 'uso_solo'].values
-    
     results = []
     with rasterio.open('data/ti_lulc_1985_reproject.tif') as src_1985:
         with rasterio.open('data/ti_lulc_2023_reproject.tif') as src_2023:
@@ -55,8 +49,8 @@ if __name__ == '__main__':
                     
                     # VECTORIZED APPROACH - Much faster
                     # Create masks for category transitions
-                    natural_mask = np.isin(lulc_1985_valid, NATURAL_CLASSES)
-                    human_mask = np.isin(lulc_2023_valid, HUMAN_CLASSES)
+                    natural_mask = np.isin(lulc_1985_valid, map_biomas.natural_classes)
+                    human_mask = np.isin(lulc_2023_valid, map_biomas.human_classes)
                     transition_mask = natural_mask & human_mask
                     
                     # Count total transitions
@@ -68,11 +62,11 @@ if __name__ == '__main__':
                     
                     # Count transitions by specific class pairs (if needed for detailed analysis)
                     class_transitions = {}
-                    for from_cls in NATURAL_CLASSES:
-                        for to_cls in HUMAN_CLASSES:
+                    for from_cls in map_biomas.natural_classes:
+                        for to_cls in map_biomas.human_classes:
                             count = np.sum((from_classes == from_cls) & (to_classes == to_cls))
                             if count > 0:
-                                class_transitions[f"class_{CLASS_NAMES[from_cls]}_to_{CLASS_NAMES[to_cls]}"] = count
+                                class_transitions[f"class_{map_biomas.class_names[from_cls]}_to_{map_biomas.class_names[to_cls]}"] = count
                     
                     # Calculate area of transitions
                     pixel_size = src_1985.res[0] * src_1985.res[1]  # in square units of the CRS
