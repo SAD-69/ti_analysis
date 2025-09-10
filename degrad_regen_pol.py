@@ -199,7 +199,7 @@ if __name__ == "__main__":
     output_shp = "forest_changes.shp"
     mp = MapBiomas()
     gpkg = GeoPackage()
-    gdf = gpkg.read_layer('ti_ac_preliminar')
+    gdf = gpkg.read_layer('se_rs_clip')
     forest_list = mp.natural_classes
     human_list = mp.human_classes
     

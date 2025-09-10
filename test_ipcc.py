@@ -37,7 +37,7 @@ def create_sample_data():
     return pd.DataFrame(data)
 
 # Normalization functions
-def normalize_indicators(df, indicators, method='minmax', direction='positive'):
+def normalize_indicators(df: pd.DataFrame, indicators, method='minmax', direction='positive'):
     """
     Normalize indicators to 0-1 scale
     direction: 'positive' if higher values are better, 'negative' if higher values are worse

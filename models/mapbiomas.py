@@ -48,7 +48,10 @@ class MapBiomas:
     
     @cached_property
     def class_names(self) -> dict:
-        return dict(zip(self.classes[CLASS_ID_COL], self.classes[DESCRIPTION_COL]))
+        return {
+            k: v.strip().replace(' ', '_').lower()
+            for k, v in zip(self.classes[CLASS_ID_COL], self.classes[DESCRIPTION_COL])
+        }
     
     @cached_property
     def natural_classes(self) -> np.ndarray:
