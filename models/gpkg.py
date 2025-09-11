@@ -1,4 +1,3 @@
-import os
 from geopandas import GeoDataFrame, read_file
 from fiona import listlayers
 
