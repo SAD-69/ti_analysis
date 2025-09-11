@@ -31,10 +31,10 @@ class VulnerabilityIndex:
         df.fillna(0, inplace=True)
         scaler = MinMaxScaler() if method == 'minmax' else StandardScaler()
         for indicator in indicators:
-            if direction == 'negative':
-                df[indicator] = 1 - scaler.fit_transform(df[[indicator]].values.reshape(-1, 1))
-            else:
-                df[indicator] = scaler.fit_transform(df[[indicator]].values.reshape(-1, 1))
+        #     if direction == 'negative':
+        #         df[indicator] = 1 - scaler.fit_transform(df[[indicator]].values.reshape(-1, 1))
+        #     else:
+            df[indicator] = scaler.fit_transform(df[[indicator]].values.reshape(-1, 1))
         return df
     
     def _calc_indicator(self, df: DataFrame | GeoDataFrame,  indicator_col: str):
@@ -58,8 +58,8 @@ class VulnerabilityIndex:
         ex_indicators = list(self.weight[ex_key].keys())
         se_indicators = list(self.weight[se_key].keys())
         ca_indicators = list(self.weight[ca_key].keys())
-        df = self.normalize_indicator(df, ex_indicators, direction='negative')
-        df = self.normalize_indicator(df, se_indicators, direction='negative')
+        df = self.normalize_indicator(df, ex_indicators)
+        df = self.normalize_indicator(df, se_indicators)
         df = self.normalize_indicator(df, ca_indicators)
         # components = ('ex_score', 'se_score', 'ac_score')
         for comp in self.components:

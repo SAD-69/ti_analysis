@@ -23,7 +23,7 @@ if __name__ == '__main__':
         None: 0
     }
 
-    gdf = gpkg.read_layer('ti_ac_preliminar')
+    gdf = gpkg.read_layer('ti_all_revisada_v1')
     gdf['status_fundiario'] = gdf['fase_ti'].map(status_map)
     inst_gdf = gpkg.read_layer('instituicoes_indigena')
     ed_gdf = gpkg.read_layer('censo_tx_alfabet')
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     indicators = indicators + ex_ind + list(weights['ca_score'].keys())
     vindex = VulnerabilityIndex(final_gdf, weights)
     df = vindex.calc_ipcc_vulnerability()
-    df.drop(columns=['geometry', 'geometry_ex']).to_file("data/vulnerability_index_revised_v1.geojson")
+    # df.drop(columns=['geometry', 'geometry_ex']).to_file("data/vulnerability_index_revised_v1.geojson")
     print("NORMALIZED DATA")
     print("="*80)
     print(df[indicators].head())
