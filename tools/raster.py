@@ -1,6 +1,7 @@
 import os
 import rasterio
 import numpy as np
+from pandas import concat
 
 from rasterio.mask import mask
 from rasterstats import zonal_stats
@@ -21,6 +22,79 @@ def lulc_percentage(gdf: GeoDataFrame, raster: str, class_dict: dict[int, str]) 
     joined_gdf = gdf.join(df_stats_pct)
     return joined_gdf
 
+def lulc_percentage_enhanced(
+    gdf: GeoDataFrame, 
+    raster: str, 
+    class_dict: dict[int, str],
+    aggregate_classes: dict[str, list[int]] = None,
+    keep_original: bool = True
+) -> GeoDataFrame:
+    """
+    Calcula porcentagens de classes de uso do solo com opção de agregação.
+    
+    Parameters:
+    -----------
+    keep_original : bool
+        Se True, mantém ambas as classes originais e agregadas
+    """
+    stats = zonal_stats(
+        gdf,
+        raster,
+        categorical=True,
+        nodata=0
+    )
+    
+    df_stats = DataFrame(stats)
+    cols = {k: v for k, v in class_dict.items() if k in df_stats.columns}
+    df_stats.rename(columns=cols, inplace=True)
+    
+    total_pixels = df_stats.sum(axis=1)
+    
+    # Calcular porcentagens das classes originais
+    df_stats_pct_original = df_stats.div(total_pixels, axis=0) * 100
+    
+    # Processar agregações se especificado
+    if aggregate_classes:
+        df_aggregated = DataFrame(index=df_stats.index)
+        
+        for aggregate_name, class_values in aggregate_classes.items():
+            # Encontrar colunas correspondentes aos valores
+            cols_to_aggregate = []
+            for class_val in class_values:
+                # Verificar se o valor existe no class_dict e encontrar nome correspondente
+                if class_val in class_dict:
+                    class_name = class_dict[class_val]
+                    if class_name in df_stats.columns:
+                        cols_to_aggregate.append(class_name)
+            
+            if cols_to_aggregate:
+                # Somar as colunas selecionadas
+                df_aggregated[aggregate_name] = df_stats[cols_to_aggregate].sum(axis=1)
+            else:
+                # Se não encontrar colunas, criar coluna com zeros
+                df_aggregated[aggregate_name] = 0
+        
+        # Calcular porcentagens CORRETAMENTE sobre o total de pixels
+        df_aggregated_pct = df_aggregated.div(total_pixels, axis=0) * 100
+        
+        # Combinar resultados baseado na opção keep_original
+        if keep_original:
+            # Manter ambas as classes originais e agregadas
+            final_df = concat([df_stats_pct_original, df_aggregated_pct], axis=1)
+        else:
+            # Manter apenas as classes agregadas
+            final_df = df_aggregated_pct
+            
+    else:
+        # Se não houver agregação, usar apenas classes originais
+        final_df = df_stats_pct_original
+    
+    final_df = final_df.fillna(0)  # Preencher NaN com 0
+    
+    # Juntar com GeoDataFrame original
+    joined_gdf = gdf.join(final_df)
+    
+    return joined_gdf
 
 
 def calc_forest_changes(raster_0: str, raster_f: str, input_gdf: GeoDataFrame, 

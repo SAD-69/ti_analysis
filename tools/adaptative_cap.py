@@ -8,6 +8,7 @@ from sklearn.impute import IterativeImputer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
 
+
 def clean_string(string: str) -> str:
     return string.replace(' ', '_').lower()
 
@@ -73,7 +74,8 @@ def imput_missing_data_distance_based(missing_data_gdf: GeoDataFrame, auxiliary_
     idw_vals = np.sum(aux_vals * weights, axis=1)
     gdf[features["idw"]] = idw_vals
 
-    list_features = [v for k,v in features.items() if k != "imputed"]
+    # list_features = [v for k,v in features.items() if k != "imputed"]
+    list_features = [v for k,v in features.items() if k not in ("imputed", "nearest_data")]
     # scale = StandardScaler()
     df = gdf[[missing_data_col] + list_features]
 
