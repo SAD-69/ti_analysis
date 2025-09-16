@@ -71,7 +71,7 @@ def run(year_0: int, year_f: int):
     # All UHE (UHE, CGH, PCH)
     uhe_se = count_fire_incidents(gdf, uhe_gdf, fire=False)
     uhe_se = uhe_se[['pol_id', 'uhe_density']]
-    b_uhe_ex = count_fire_incidents(buffer_gdf, foco_calor, fire=False)
+    b_uhe_ex = count_fire_incidents(buffer_gdf, uhe_gdf, fire=False)
     b_uhe_ex = b_uhe_ex[['pol_id', 'uhe_density']]
 
     uhe_gdf = pd.merge(uhe_se, b_uhe_ex, on='pol_id', how='left', suffixes=['_se', '_ex'])
@@ -207,8 +207,8 @@ def run(year_0: int, year_f: int):
     df_mata = vindex_mata.calc_ipcc_vulnerability()
     df = pd.concat([df_pampa, df_mata])
 
-    # df = df.drop(columns=['geometry', 'geometry_ex'])
-    # gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_differential_isolated_padronized')
+    df = df.drop(columns=['geometry', 'geometry_ex'])
+    gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_good')
 
     print("NORMALIZED DATA")
     print("="*80)
@@ -219,9 +219,9 @@ def run(year_0: int, year_f: int):
     print(df['vulnerability_index'].describe())
 
 if __name__ == '__main__':
-    # run(1985, 2023)
-    run(1985, 2000)
-    run(2000, 2010)
-    run(2010, 2023)
+    run(1985, 2023)
+    # run(1985, 2000)
+    # run(2000, 2010)
+    # run(2010, 2023)
     
     

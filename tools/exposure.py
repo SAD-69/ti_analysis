@@ -59,9 +59,9 @@ def count_fire_incidents(main_gdf: GeoDataFrame, pt_heat_gdf: GeoDataFrame, fire
     return gdf
 
 
-def spatial_join_pampa(main_gdf: GeoDataFrame, biome_gdf: GeoDataFrame, primary_key: str = 'pol_id') -> GeoDataFrame:
+def spatial_join_pampa(main_gdf: GeoDataFrame, biome_gdf: GeoDataFrame, primary_key: str = 'pol_id', bioma_col: str = 'bioma') -> GeoDataFrame:
     gdf = main_gdf.copy()
-    join_gdf = sjoin(gdf, biome_gdf[['bioma', 'geometry']], how='left', predicate='intersects')
+    join_gdf = sjoin(gdf, biome_gdf[[bioma_col, 'geometry']], how='left', predicate='intersects')
     join_gdf.drop(columns=['index_right'], inplace=True)
     join_gdf.drop_duplicates(subset=primary_key, inplace=True)
     return join_gdf
