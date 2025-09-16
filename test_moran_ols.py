@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from models.gpkg import GeoPackage
 
 gpkg = GeoPackage()
-gdf = gpkg.read_layer('vulnerability_index_revised_v2')
+gdf = gpkg.read_layer('vindex_1985_2023_v02')
 gdf.geometry = gdf.geometry.centroid
 
 coords = np.vstack([gdf.geometry.x, gdf.geometry.y]).T

@@ -13,20 +13,22 @@ fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 axes = axes.flatten()
 
 gpkg = GeoPackage()
-gdf = gpkg.read_layer('test_educacao_regressao')
-gdf.dropna(subset=['TxAlfabetI'], inplace=True)
-
+gdf = gpkg.read_layer('vindex_1985_2023_form_revised')
+# gdf.dropna(subset=['TxAlfabetI'], inplace=True)
+y_col = 'vulnerability_index'
+cols = ["soybean_ex", "soybean_se"]
 # Variáveis dependente (y) e independentes (X)
-y = gdf["TxAlfabetI"].values.reshape(-1,1)
-X = gdf[["ideb_2023_idw", "ideb_2023_nearest", "dist_nearest_point"]].values
+y = gdf[y_col].values.reshape(-1,1)
+X = gdf[cols].values
+
 
 # 2. Criar matriz de pesos espaciais baseada em distância (ex.: 150 km)
 w = DistanceBand.from_dataframe(gdf, threshold=40000, silence_warnings=True)
 w.transform = "r"   # normalizar pesos
 
 # 3. Regressão OLS (baseline)
-ols = OLS(y, X, name_y="Taxa Alfabetizacao",
-          name_x=["ideb ponderado", "ideb mais proximo", "distancia do mais proximo"])
+ols = OLS(y, X, name_y=y_col,
+          name_x=cols)
 print("\n--- OLS ---")
 print(ols.summary)
 
@@ -46,8 +48,8 @@ print(f"I = {moran_res.I:.4f}, p-value = {moran_res.p_sim:.4f}")
 # 5. Se houver autocorrelação -> rodar modelos espaciais
 if moran_res.p_sim < 0.05:
     print("\n--- Spatial Lag Model (SAR) ---")
-    sar = ML_Lag(y, X, w=w, name_y="Taxa Alfabetizacao",
-                 name_x=["ideb ponderado", "ideb mais proximo", "distancia do mais proximo"])
+    sar = ML_Lag(y, X, w=w, name_y=y_col,
+                 name_x=cols)
     print(sar.summary)
     
     # Plot SAR - Valores Observados vs Previstos
@@ -59,8 +61,8 @@ if moran_res.p_sim < 0.05:
     axes[1].grid(True, alpha=0.3)
 
     print("\n--- Spatial Error Model (SEM) ---")
-    sem = ML_Error(y, X, w=w, name_y="Taxa Alfabetizacao",
-                   name_x=["ideb ponderado", "ideb mais proximo", "distancia do mais proximo"])
+    sem = ML_Error(y, X, w=w, name_y=y_col,
+                   name_x=cols)
     print(sem.summary)
     
     # Plot SEM - Valores Observados vs Previstos

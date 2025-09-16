@@ -5,10 +5,10 @@ from pandas import DataFrame
 
 if __name__ == '__main__':
     gpkg = GeoPackage()
-    gdf = gpkg.read_layer("ti_stats_sistemas_ecologicos_ipcc")
+    gdf = gpkg.read_layer("biomas_rs")
     mp_bioma = MapBiomas()
     class_dict = mp_bioma.class_names
-    raster = 'data/ti_lulc_2023_reproject.tif'
+    raster = 'data/ti_lulc_2010_reproject.tif'
     stats = zonal_stats(
         gdf,
         raster,
@@ -20,6 +20,6 @@ if __name__ == '__main__':
     df_stats_pct = df_stats.div(df_stats.sum(axis=1), axis=0) * 100
     gdf_final = gdf.join(df_stats_pct)
 
-    gdf_final.to_file("data/ti_stats_se_mapbiomas.geojson")
+    gdf_final.to_file("data/biomas_rs_lulc_2010.geojson")
 
     print(gdf_final.head())

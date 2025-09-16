@@ -64,6 +64,7 @@ class VulnerabilityIndex:
         # components = ('ex_score', 'se_score', 'ac_score')
         for comp in self.components:
             df[comp] = self._calc_indicator(df, comp)
-        df['vulnerability_raw'] = (df[ex_key] + df[se_key]) - df[ca_key]
+        df['vulnerability_raw'] = (df[ex_key] + df[se_key]) + (1 - df[ca_key]) / 3
         df['vulnerability_index'] = MinMaxScaler().fit_transform(df[['vulnerability_raw']])
         return df
+

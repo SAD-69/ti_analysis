@@ -1,0 +1,21 @@
+flowchart TD
+A[Carga de dados] --> B[Pré-processamento]
+B --> C{Cálculo de distâncias e métricas IDEB}
+C --> D[Escola mais próxima<br>Distância & IDEB]
+C --> E[5 escolas mais próximas<br>IDEB Interpolado IDW]
+
+D --> F[Create Feature Matrix]
+E --> F
+
+subgraph F[Dados para imputação]
+    direction LR
+    F1[Taxa de alfabetização<br>Variável alvo]
+    F2[ideb_nearest<br>Componente]
+    F3[ideb_idw<br>Componente]
+    F4[dist_nearest_school<br>Componente]
+end
+
+F --> G[Componentes escalonados]
+G --> H[Imputar valores ausentes<br>Iterative Imputer com Random Forest]
+H --> I[Armazenar dados imputados]
+I --> J[Resultados & validação]
