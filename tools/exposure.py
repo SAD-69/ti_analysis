@@ -1,5 +1,6 @@
 import numpy as np
 from geopandas import GeoDataFrame, sjoin, overlay
+import pandas as pd
 
 SIGMINE_CONDITION = [
     'REQUERIMENTO DE PESQUISA',
@@ -16,31 +17,34 @@ SIGMINE_CONDITION = [
 def calc_mining_threat(main_gdf: GeoDataFrame, count_gdf: GeoDataFrame, fase_col: str = 'fase', primary_key: str = 'pol_id') -> GeoDataFrame:
     gdf = main_gdf.copy()
     sigmine_gdf = count_gdf.copy()
-    condition = sigmine_gdf[fase_col].isin(SIGMINE_CONDITION)
-    sigmine_gdf['status_proj'] = np.where(condition, 'futuro', 'corrente')
-    sigmine_gdf['status_weight'] = np.where(sigmine_gdf['status_proj'].isin(['futuro']), 0.5, 1)
-    intersect_gdf = sjoin(gdf, sigmine_gdf, how='inner', predicate='intersects')
 
-    qt_gdf = (
-        intersect_gdf
-        .groupby([primary_key, 'status_proj'])
-        .size()
-        .unstack(fill_value=0)
-        .reset_index()
-    )
+    mining = sigmine_gdf.copy()
 
-    w_gdf = (
-        intersect_gdf
-        .groupby(primary_key)['status_weight']
+    # Define status e peso
+    condition = mining[fase_col].isin(SIGMINE_CONDITION)
+    mining['status_proj'] = np.where(condition, 'futuro', 'corrente')
+    mining['status_weight'] = np.where(mining['status_proj'] == 'futuro', 0.5, 1.0)
+
+    # Interseção TI x processos
+    intersect = overlay(gdf, mining, how='intersection')
+
+    # Calcula área ponderada
+    intersect['intersect_area'] = intersect.geometry.area
+    intersect['weighted_area'] = intersect['intersect_area'] * intersect['status_weight']
+
+    # Soma por TI
+    mining_area = (
+        intersect.groupby(primary_key)['weighted_area']
         .sum()
         .reset_index()
     )
-    gdf = gdf.merge(qt_gdf, on=primary_key, how='left')
-    gdf = gdf.merge(w_gdf, on=primary_key, how='left')
-    gdf[['corrente', 'futuro', 'status_weight']] = gdf[['corrente', 'futuro', 'status_weight']].fillna(0)
-    
-    # Qt de processos/km² (1e-6)
-    gdf['mining_threat_density'] = gdf['status_weight'] / (gdf.geometry.area * 1e-6)
+
+    # Junta com as TIs
+    gdf = gdf.merge(mining_area, on=primary_key, how='left')
+    gdf['weighted_area'] = gdf['weighted_area'].fillna(0)
+
+    # Normaliza pela área da TI (proporção da área afetada)
+    gdf['mining_threat_area_ratio'] = gdf['weighted_area'] / gdf.geometry.area
     return gdf
 
 
@@ -80,4 +84,28 @@ def road_density(main_gdf: GeoDataFrame, road_gdf: GeoDataFrame, primary_key: st
     gdf['road_length'] = gdf.index.map(road_length_per_ti).fillna(0)
     # km/km²
     gdf['road_density'] = (gdf['road_length'] / 1000) / (gdf.geometry.area / 1e6)
+    return gdf
+
+
+def estrutura_fundiaria_sum(main_gdf: GeoDataFrame, car_gdf: GeoDataFrame, primary_key: str = 'pol_id'):
+    gdf = main_gdf.copy()
+    gdf = gdf[[primary_key, 'geometry']]
+    car = car_gdf.copy()
+    car["tipo_propriedade"] = pd.cut(
+        car["mod_fiscal"],
+        bins=[-float("inf"), 0.99, 4, 15, float("inf")],
+        labels=["Minifúndio", "Pequena propriedade", "Média propriedade", "Grande propriedade"]
+    )
+
+    pesos = {
+        "Minifúndio": 0.125,
+        "Pequena propriedade": 0.25,
+        "Média propriedade": 0.5,
+        "Grande propriedade": 1
+    }
+
+    car['est_fundiaria'] = car['tipo_propriedade'].map(pesos).astype(float)
+    joined_gdf = sjoin(gdf, car[['geometry', 'tipo_propriedade', 'est_fundiaria']])
+    joined_gdf = joined_gdf.groupby(primary_key)['est_fundiaria'].sum()
+    gdf = pd.merge(gdf, joined_gdf, on=primary_key, how='outer')
     return gdf

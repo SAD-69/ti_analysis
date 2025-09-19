@@ -1,7 +1,7 @@
 import geopandas as gpd
 import numpy as np
 import matplotlib.pyplot as plt
-from libpysal.weights import DistanceBand
+from libpysal.weights import DistanceBand, KNN
 from esda.moran import Moran
 from spreg import OLS, ML_Lag, ML_Error
 
@@ -13,17 +13,22 @@ fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 axes = axes.flatten()
 
 gpkg = GeoPackage()
-gdf = gpkg.read_layer('vindex_1985_2023_form_revised')
+gdf = gpkg.read_layer('vindex_1985_2023_entrega')
+gdf.geometry = gdf.geometry.buffer(gdf.dist_buf)
+gdf['soybean'] = gdf['soybean_ex'] + gdf['soybean_se']
+gdf['agropec'] = gdf['agropec_ex'] + gdf['agropec_se']
+gdf['degeneration_%'] = gdf['degeneration_%_ex'] + gdf['degeneration_%_se']
 # gdf.dropna(subset=['TxAlfabetI'], inplace=True)
 y_col = 'vulnerability_index'
-cols = ["soybean_ex", "soybean_se"]
+cols = ['est_fundiaria', 'soybean']
 # Variáveis dependente (y) e independentes (X)
 y = gdf[y_col].values.reshape(-1,1)
 X = gdf[cols].values
 
 
 # 2. Criar matriz de pesos espaciais baseada em distância (ex.: 150 km)
-w = DistanceBand.from_dataframe(gdf, threshold=40000, silence_warnings=True)
+# w = DistanceBand.from_dataframe(gdf, threshold=40000, silence_warnings=True)
+w = KNN.from_dataframe(gdf, k=6)
 w.transform = "r"   # normalizar pesos
 
 # 3. Regressão OLS (baseline)

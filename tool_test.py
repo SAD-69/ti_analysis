@@ -3,30 +3,31 @@ import pandas as pd
 import copy
 
 from tools.raster import calc_forest_changes, lulc_percentage, lulc_percentage_enhanced
-from tools.adaptative_cap import normalized_proximity_index, imput_missing_data_distance_based
+from tools.adaptative_cap import (
+    normalized_proximity_index, 
+    imput_missing_data_distance_based,
+    gerar_representividade)
 from tools.exposure import (
     calc_mining_threat, 
     count_fire_incidents, 
     spatial_join_pampa, 
     buffer_cut,
-    road_density)
-from tools.pca_weight import (
-    pca_measure_weight, 
-    plot_pca_heatmap, 
-    plot_explained_variance, 
-    plot_scree,
-    analyze_bioma_weights,
-    plot_bioma_comparison,
-    pca_measure_weight_flexible)
+    road_density,
+    estrutura_fundiaria_sum)
+# from tools.pca_weight import (
+#     pca_measure_weight, 
+#     plot_pca_heatmap, 
+#     plot_explained_variance, 
+#     plot_scree,
+#     analyze_bioma_weights,
+#     plot_bioma_comparison,
+#     pca_measure_weight_flexible)
 from models.gpkg import GeoPackage
 from models.mapbiomas import MapBiomas
 from models.ipcc import VulnerabilityIndex
 from geopandas import sjoin
 
 def run(year_0: int, year_f: int):
-    from pprint import pprint
-    # YEAR_1 = 1985
-    # YEAR_2 = 2000
     raster_1985 = f"data/ti_lulc_{year_0}_reproject.tif"
     raster_2023 = f"data/ti_lulc_{year_f}_reproject.tif"
     mp = MapBiomas()
@@ -53,20 +54,39 @@ def run(year_0: int, year_f: int):
     ed_gdf = gpkg.read_layer('censo_tx_alfabet')
     inep_gdf = gpkg.read_layer('inep_dados')
     mine_gdf = gpkg.read_layer('sigmine_rs')
+    mine_gdf.geometry = mine_gdf.geometry.force_2d()
     foco_calor = gpkg.read_layer('focos_calor_all_year')
     uhe_gdf = gpkg.read_layer('uhe')
     road_gdf = gpkg.read_layer('roads')
+    pop_ti = gpkg.read_layer('pop_indigena_mun')
+    pop_ti['mun_id'] = pop_ti.index
+    pop_ti['PessInd'] = pop_ti['PessInd'].fillna(0).astype(int)
+    pop_ti['pop_indigena'] = pop_ti['PessInd'].mask(pop_ti['PessInd'] < 0)
+    pop_ti['PopIndEmT']= pop_ti['PessIndEmT'].fillna(0).astype(int)
+    pop_ti['pop_indigena_ti'] = pop_ti['PessIndEmT'].mask(pop_ti['PessIndEmT'] < 0)
+    pop_ti['PopResid'] = pop_ti['PopResid'].fillna(0).astype(int)
+    pop_ti['pop_total'] = pop_ti['PopResid'].mask(pop_ti['PopResid'] < 0)
+    pop_ti['perc_indigena'] = pop_ti['pop_indigena'] / pop_ti['pop_total']
+    pop_ti['perc_em_ti'] = pop_ti['pop_indigena_ti'] / pop_ti['pop_indigena'] 
 
+
+    car = gpkg.read_layer('sicar_rs')
     ti_ed_gdf = sjoin(gdf, ed_gdf[['geometry', 'TxAlfabetI']], how='left')
     buffer_gdf = buffer_cut(gdf)
+    buffer_gdf = estrutura_fundiaria_sum(buffer_gdf, car)
     forest_list = mp.natural_classes
     non_forest_list = mp.human_classes
 
+    # Indice representatividade
+    ir_gdf = gerar_representividade(gdf, pop_ti)
+    # print(ir_gdf)
+    ir_gdf = ir_gdf[['pol_id', 'IR_municipal_corrigido_avg']].rename(columns={"IR_municipal_corrigido_avg": "rep_index"})
+
     # All data from 1998 to 2024 (risco_fogo > 0.5)
     foco_gdf = count_fire_incidents(gdf, foco_calor)
-    foco_gdf = foco_gdf[['pol_id', 'heat_density']]
+    foco_gdf = foco_gdf[['pol_id', 'heat_density', 'dist_buf']]
     b_foco_gdf = count_fire_incidents(buffer_gdf, foco_calor)
-    b_foco_gdf = b_foco_gdf[['pol_id', 'heat_density']]
+    b_foco_gdf = b_foco_gdf[['pol_id', 'heat_density', 'est_fundiaria']]
 
     # All UHE (UHE, CGH, PCH)
     uhe_se = count_fire_incidents(gdf, uhe_gdf, fire=False)
@@ -88,7 +108,7 @@ def run(year_0: int, year_f: int):
     lulc_perc_gdf = lulc_perc_gdf[['pol_id', 'forest_formation', 'grassland', 'soybean', 'forest_plantation', 'urban_area', 'agropec']]
 
     sigmine_gdf = calc_mining_threat(gdf, mine_gdf)
-    sigmine_gdf = sigmine_gdf[['pol_id', 'mining_threat_density']]
+    sigmine_gdf = sigmine_gdf[['pol_id', 'mining_threat_area_ratio']]
 
     b_degen_gdf = calc_forest_changes(raster_1985, raster_2023, buffer_gdf, forest_list, non_forest_list)
     b_degen_gdf = b_degen_gdf[['pol_id', 'geometry', 'regeneration_%', 'degeneration_%', 'forest_cover_2023_%']]
@@ -98,7 +118,7 @@ def run(year_0: int, year_f: int):
     b_lulc_perc_gdf = b_lulc_perc_gdf[['pol_id', 'forest_formation', 'grassland', 'soybean', 'forest_plantation', 'urban_area', 'agropec']]
 
     b_sigmine_gdf = calc_mining_threat(buffer_gdf, mine_gdf)
-    b_sigmine_gdf = sigmine_gdf[['pol_id', 'mining_threat_density']]
+    b_sigmine_gdf = b_sigmine_gdf[['pol_id', 'mining_threat_area_ratio']]
 
     ca_prox_gdf = normalized_proximity_index(gdf, inst_gdf)
     ca_ed_gdf = imput_missing_data_distance_based(ti_ed_gdf, inep_gdf, 'TxAlfabetI', 'IDEB_2023')
@@ -122,16 +142,21 @@ def run(year_0: int, year_f: int):
     ipcc_mining_gdf = pd.merge(se_ex_gdf, both_mining_gdf, on='pol_id', how='left')
     ipcc_heat_gdf = pd.merge(ipcc_mining_gdf, ca_gdf, on='pol_id', how='left')
     road_ipcc_gdf = pd.merge(ipcc_heat_gdf, both_road, on='pol_id', how='left')
-    semifinal_gdf = pd.merge(road_ipcc_gdf, uhe_gdf, on='pol_id', how='left')
-    final_gdf = pd.merge(semifinal_gdf, foco_gdf, on='pol_id', how='left')
+    road_rep_gdf = pd.merge(road_ipcc_gdf, ir_gdf, on='pol_id', how='left')
+    # car_road_gdf =  pd.merge(road_ipcc_gdf, ir_gdf, on='pol_id', how='left')
+    semifinal_gdf = pd.merge(road_rep_gdf, uhe_gdf, on='pol_id', how='left')
     
+    final_gdf = pd.merge(semifinal_gdf, foco_gdf, on='pol_id', how='left')
+    final_gdf['regeneration_%_total'] = final_gdf['regeneration_%_ex'] + final_gdf['regeneration_%_se']
+    final_gdf['remanescentes_veg'] = final_gdf['forest_formation_ex'] + final_gdf['forest_formation_se'] + final_gdf['grassland_ex'] + final_gdf['grassland_se']
+    # gpkg.save_layer(final_gdf, 'pre_ipcc')
     indicators = [
         'forest_plantation',
         'soybean',
         'urban_area',
         'agropec',
         'degeneration_%',
-        'mining_threat_density',
+        'mining_threat_area_ratio',
         'heat_density',
         'road_density',
         'uhe_density'
@@ -139,64 +164,44 @@ def run(year_0: int, year_f: int):
 
     weights = {
         'ex_score': {
-            'forest_plantation_ex': 1/7,
-            'soybean_ex': 1/7,
-            'urban_area_ex': 1/7,
-            'degeneration_%_ex': 1/7,
-            'agropec_ex': 1/7,
-            'mining_threat_density_ex': 1/7,
-            'heat_density_ex': 1/7,
-            'road_density_ex': 1/7,
-            'uhe_density_ex': 1/7
+            'forest_plantation_ex': 0.031,
+            'soybean_ex': 0.164,
+            'urban_area_ex': 0.021,
+            'degeneration_%_ex': 0.201,
+            'agropec_ex': 0.169,
+            'mining_threat_area_ratio_ex': 0.137,
+            'heat_density_ex': 0.16,
+            'road_density_ex': 0.012,
+            'uhe_density_ex': 0.046,
+            'est_fundiaria': 0.06
         },
         'se_score': {
-            'forest_plantation_se': 1/7,
-            'soybean_se': 1/7,
-            'urban_area_se': 1/7,
-            'degeneration_%_se': 1/7,
-            'agropec_se': 1/7,
-            'mining_threat_density_se': 1/7,
-            'heat_density_se': 1/7,
-            'road_density_se': 1/7,
-            'uhe_density_se': 1/7
+            'forest_plantation_se': 0.031,
+            'soybean_se': 0.238,
+            'urban_area_se': 0.045,
+            'degeneration_%_se': 0.102,
+            'agropec_se': 0.246,
+            'mining_threat_area_ratio_se': 0.159,
+            'heat_density_se': 0.09,
+            'road_density_se': 0.013,
+            'uhe_density_se': 0.075            
         },
         'ca_score': {
-            'forest_formation_ex': 1/5,
-            'forest_formation_se': 1/5,
-            'grassland_ex': 1/5,
-            'grassland_se': 1/5,
-            'regeneration_%_ex': 1/5,
-            'txalfabeti_imputed': 1/5,
-            'proximity_index': 1/5,
-            'status_fundiario': 1/5
+            'regeneration_%_total': 0.466,
+            'remanescentes_veg': 0.315,
+            'txalfabeti_imputed': 0.051,
+            'proximity_index': 0.029,
+            'status_fundiario': 0.098,
+            'rep_index': 0.04
         }
     }
     weight_mata = copy.deepcopy(weights)
 
-    # for componente in weights.keys():
-    #     pca_measure_weight(final_gdf[final_gdf['bioma'] == 'Mata atlântica'], weights, componente, first_comp=True)
-    # plot_pca_heatmap(weights, bioma='Mata atlântica')
     pampa = final_gdf[final_gdf['bioma'] != 'Mata atlântica']
     mata = final_gdf[final_gdf['bioma'] == 'Mata atlântica']
-    for componente in weights.keys():
-        pca_measure_weight_flexible(pampa, weights, componente, n_components=5)
-        # pca_measure_weight(pampa, weights, componente, first_comp=False, n_components=5)
-        # plot_explained_variance(pampa, list(weights[componente].keys()), componente)
-        # plot_scree(pampa, list(weights[componente].keys()), componente)
-    # analyze_bioma_weights(pampa, weights, 'Pampa')
-    # plot_pca_heatmap(weights, bioma='Pampa')
-    for componente in weights.keys():
-        # pca_measure_weight(mata, weight_mata, componente, first_comp=False, n_components=5)
-        pca_measure_weight_flexible(mata, weight_mata, componente, n_components=5)
-    # analyze_bioma_weights(mata, weight_mata, 'Mata atlântica')
-    # plot_pca_heatmap(weight_mata, bioma='Mata atlântica')
-    plot_bioma_comparison(weights, weight_mata)
-    # for componente in weights.keys():
-    #     pca_measure_weight(final_gdf, weights, componente, first_comp=True)
-    # plot_pca_heatmap(weights)
-    print(weights)
+    comps = list(weights.keys())
+    comps.pop()
 
-    
     ex_ind = [f'{i}_ex' for i in indicators]
     indicators = [f'{i}_se' for i in indicators]
     
@@ -208,7 +213,15 @@ def run(year_0: int, year_f: int):
     df = pd.concat([df_pampa, df_mata])
 
     df = df.drop(columns=['geometry', 'geometry_ex'])
-    gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_good')
+    bins = 6
+    labels = ['Muito baixo', 'Baixo', 'Médio', 'Alto', 'Muito Alto', 'Crítico']
+    ca_labels = ['Muito baixa', 'Baixa', 'Média', 'Alta', 'Muito Alta', 'Excepcional']
+
+    df['vulnerability_category'] = pd.qcut(df['vulnerability_index'], q=bins, labels=labels)
+    df['ca_category_norm'] = pd.qcut(df['ca_score'], q=bins, labels=ca_labels)
+    df['se_category_norm'] = pd.qcut(df['se_score'], q=bins, labels=labels)
+    df['ex_category_norm'] = pd.qcut(df['ex_score'], q=bins, labels=labels)
+    gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_entrega')
 
     print("NORMALIZED DATA")
     print("="*80)
@@ -220,8 +233,8 @@ def run(year_0: int, year_f: int):
 
 if __name__ == '__main__':
     run(1985, 2023)
-    # run(1985, 2000)
-    # run(2000, 2010)
-    # run(2010, 2023)
+    run(1985, 2000)
+    run(2000, 2010)
+    run(2010, 2023)
     
     

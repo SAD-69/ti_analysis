@@ -269,17 +269,20 @@ if __name__ == "__main__":
     # main()
     
     # Demonstrate all visualizations
+    from tools.exposure import spatial_join_pampa
     gpkg = GeoPackage()
-    gdf = gpkg.read_layer('vindex_1985_2023_form_revised')
+    gdf = gpkg.read_layer('vindex_1985_2023_good')
+    se = gpkg.read_layer('sistemas_ecologicos_RS_hasenack')
+    gdf = spatial_join_pampa(gdf, se, bioma_col='SISTEMA')
     histo = HistogramVisualizer(gdf)
     histo.create_histogram(
-        'etnia_nome',
-        'vulnerability_index'
+        'SISTEMA',
+        'soybean_ex'
     )
     # histo.create_grouped_histogram(
-    #     'etnia_nome',
+    #     'soybean_ex',
     #     'bioma',
-    #     'ca_score'
+    #     'vulnerability_index'
     # )
     plt.show()
     # demonstrate_all_visualizations()

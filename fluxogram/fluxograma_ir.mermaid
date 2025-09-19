@@ -1,0 +1,18 @@
+flowchart TD
+    A[Camada de Terras Indígenas] --> C[Sobreposição]
+    B[Camada de Municípios<br>pop_indgena_mun, pop_indigena_ti] --> C
+    
+    C --> D[Tabela de Intersecções<br>TI_ID, MUN_ID, Área_km²]
+    
+    D --> E{pop_indigena_ti > 0}
+    
+    E -- Sim --> F[Alocação Direta<br>Baseada em dados de população indígena residente em TI]
+    E -- Não --> G[Alocação por Proporção de Área<br>Baseada em população indígena municipal]
+    
+    F --> H[Tabela Final com Populações Estimadas]
+    G --> H
+    
+    H --> I[Agregação por TI]
+    I --> J[Cálculo de Índices<br>IR_Municipal, IR_Global]
+    
+    J --> K[Base Final para Análise<br>de Vulnerabilidade]

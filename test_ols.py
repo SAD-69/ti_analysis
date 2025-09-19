@@ -7,13 +7,14 @@ from spreg import OLS, ML_Lag, ML_Error
 from models.gpkg import GeoPackage
 
 gpkg = GeoPackage()
-gdf = gpkg.read_layer('test_educacao_regressao')
+gdf = gpkg.read_layer('vindex_1985_2023_entrega')
 
-gdf.dropna(subset=['TxAlfabetI'], inplace=True)
+# gdf.dropna(subset=['TxAlfabetI'], inplace=True)
 
 # Variáveis dependente (y) e independentes (X)
-y = gdf["TxAlfabetI"].values.reshape(-1,1)
-X = gdf[["ideb_2023_idw", "ideb_2023_nearest", "dist_nearest_point"]].values
+cols = ['ca_score', 'se_score', 'ex_score']
+y = gdf["vulnerability_index"].values.reshape(-1,1)
+X = gdf[cols].values
 
 # 2. Criar matriz de pesos espaciais baseada em distância (ex.: 150 km)
 w = DistanceBand.from_dataframe(gdf, threshold=40000, silence_warnings=True)
@@ -33,13 +34,13 @@ print(f"I = {moran_res.I:.4f}, p-value = {moran_res.p_sim:.4f}")
 # 5. Se houver autocorrelação -> rodar modelos espaciais
 if moran_res.p_sim < 0.05:
     print("\n--- Spatial Lag Model (SAR) ---")
-    sar = ML_Lag(y, X, w=w, name_y="Taxa Alfabetizacao",
-                 name_x=["ideb ponderado", "ideb mais proximo", "distancia do mais proximo"])
+    sar = ML_Lag(y, X, w=w, name_y="Vulnerabilidade",
+                 name_x=cols)
     print(sar.summary)
 
     print("\n--- Spatial Error Model (SEM) ---")
-    sem = ML_Error(y, X, w=w, name_y="Taxa Alfabetizacao",
-                   name_x=["ideb ponderado", "ideb mais proximo", "distancia do mais proximo"])
+    sem = ML_Error(y, X, w=w, name_y="Vulnerabilidade",
+                   name_x=cols)
     print(sem.summary)
 
     # Comparar modelos pelo AIC

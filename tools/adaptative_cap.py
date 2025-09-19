@@ -7,6 +7,7 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
+from geopandas import overlay
 
 
 def clean_string(string: str) -> str:
@@ -93,3 +94,92 @@ def imput_missing_data_distance_based(missing_data_gdf: GeoDataFrame, auxiliary_
     gdf[features["imputed"]] = df_imputed[:, 0]
 
     return gdf
+
+def gerar_representividade(
+        ti_gdf: GeoDataFrame, 
+        mun_gdf: GeoDataFrame, 
+        primary_key: str = 'pol_id', 
+        mun_id: str = 'mun_id',
+        pop_total: str = 'pop_total',
+        pop_indig_total: str = 'pop_indigena',
+        pop_indig_ti: str = 'pop_indigena_ti'):
+    parts = overlay(ti_gdf[[primary_key, 'geometry']], mun_gdf[[mun_id, 'geometry']], how='intersection')
+    parts['area_km2'] = parts.geometry.area / 1e6
+
+    areasum = parts.groupby(mun_id, as_index=False).area_km2.sum().rename(columns={'area_km2': 'areasum_mun'})
+    parts = parts.merge(areasum, on=mun_id, how='left')
+    parts = parts.merge(mun_gdf[[mun_id, pop_total, pop_indig_total, pop_indig_ti]], on=mun_id, how='left')
+    
+    # Pop indigena total por mun
+    pop_total_municipal = parts[[mun_id, pop_indig_total]].drop_duplicates()[pop_indig_total].sum()
+    # Pop indigena parcial (por TI) para cada mun
+    pop_total_ti = parts[[mun_id, pop_indig_ti]].drop_duplicates()[pop_indig_ti].sum()
+    
+    # 3️⃣ CORREÇÃO: Calcular fator de correção para população MUNICIPAL
+    # (se necessário, dependendo da qualidade dos dados)
+    fator_correcao_mun = pop_total_municipal / parts[[mun_id, pop_indig_total]].drop_duplicates()[pop_indig_total].sum()
+    parts['pop_indigena_corrigida'] = parts[pop_indig_total] * fator_correcao_mun
+
+    # 4️⃣ Calcular a área total de cada município que intersecta TIs
+    mun_area = parts.groupby(mun_id)['area_km2'].sum().reset_index()
+    mun_area.rename(columns={'area_km2': 'area_total_mun_tis'}, inplace=True)
+    parts = parts.merge(mun_area, on=mun_id)
+
+    # 5️⃣ Alocação principal: usar pop_indigena_ti quando disponível (dados DIRETOS da TI)
+    parts['pop_alloc'] = np.where(
+        parts[pop_indig_ti].notna() & (parts['areasum_mun'] > 0),
+        parts[pop_indig_ti] * (parts['area_km2'] / parts['areasum_mun']),
+        np.nan
+    )
+
+    # 6️⃣ Fallback: se pop_indigena_ti é NaN, usar população MUNICIPAL proporcional à área
+    parts['pop_alloc_fallback'] = np.where(
+        parts[pop_indig_ti].isna() & (parts['area_total_mun_tis'] > 0),
+        parts['pop_indigena_corrigida'] * (parts['area_km2'] / parts['area_total_mun_tis']),
+        np.nan
+    )
+
+
+
+    # 7️⃣ Combinar alocação principal + fallback
+    parts['pop_part_final'] = parts['pop_alloc'].combine_first(parts['pop_alloc_fallback'])
+    # 8️⃣ VERIFICAÇÃO: Comparar com dado real quando disponível
+    total_estimado_ti = parts['pop_part_final'].sum()
+    total_real_ti = pop_total_ti
+
+    # 9️⃣ Calcular fator de correção FINAL baseado na superestimativa
+    if total_real_ti > 0:
+        fator_correcao_final = total_real_ti / total_estimado_ti
+        print(f"Fator de correção final: {fator_correcao_final:.4f}")
+        parts['pop_part_final_corrigido'] = parts['pop_part_final'] * fator_correcao_final
+    else:
+        parts['pop_part_final_corrigido'] = parts['pop_part_final']
+
+    # 🔟 Calcular IR_municipal com fallback robusto
+    parts['IR_municipal_corrigido'] = np.where(
+        parts[pop_indig_ti].notna() & (parts[pop_indig_ti] > 0),
+        parts['pop_part_final_corrigido'] / parts[pop_indig_ti],
+        np.where(
+            parts['pop_indigena_corrigida'].notna() & (parts['pop_indigena_corrigida'] > 0),
+            parts['pop_part_final_corrigido'] / parts['pop_indigena_corrigida'],
+            0
+        )
+    )
+
+    # 1️⃣1️⃣ Agrupar por TI para resultados finais
+    ti_grouped = parts.groupby(primary_key, as_index=False).agg({
+        'pop_part_final_corrigido': 'sum',
+        'area_km2': 'sum'
+    })
+    IR_mun_corrigido_agg = parts.groupby(primary_key).apply(
+        lambda x: np.average(x['IR_municipal_corrigido'], weights=x['area_km2'])
+    ).reset_index(name='IR_municipal_corrigido_avg')
+
+    # Calcular IR_global
+    ti_grouped['pop_part_final_corrigido'] = ti_grouped['pop_part_final_corrigido'].astype(int)
+    ti_max_pop = ti_grouped['pop_part_final_corrigido'].max()
+    ti_grouped['IR_global'] = ti_grouped['pop_part_final_corrigido'] / ti_max_pop
+    ti_grouped = ti_grouped.merge(IR_mun_corrigido_agg, on=primary_key, how='left')
+
+
+    return ti_grouped
