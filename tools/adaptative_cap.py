@@ -102,7 +102,7 @@ def gerar_representividade(
         mun_id: str = 'mun_id',
         pop_total: str = 'pop_total',
         pop_indig_total: str = 'pop_indigena',
-        pop_indig_ti: str = 'pop_indigena_ti'):
+        pop_indig_ti: str = 'pop_indigena_ti') -> GeoDataFrame:
     parts = overlay(ti_gdf[[primary_key, 'geometry']], mun_gdf[[mun_id, 'geometry']], how='intersection')
     parts['area_km2'] = parts.geometry.area / 1e6
 

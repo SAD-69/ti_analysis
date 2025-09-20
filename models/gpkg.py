@@ -2,7 +2,7 @@ from geopandas import GeoDataFrame, read_file
 from fiona import listlayers
 
 # GPKG_PATH = r'c:\Users\adminitsd\Documents\ufrgs\mestrado\qgz\final_master.gpkg'
-GPKG_PATH = r'c:\Users\adminitsd\Documents\ufrgs\mestrado\qgz\ti_db.gpkg'
+GPKG_PATH = r'c:\Users\adminitsd\Documents\ufrgs\mestrado\qgz\new_ti.gpkg'
 EPSG_CODE = 5880 # SIRGAS 2000/Brazil Polyconic
 
 class GeoPackage:

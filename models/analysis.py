@@ -4,8 +4,11 @@ from models.ipcc import VulnerabilityIndex
 from geopandas import sjoin
 from copy import deepcopy
 from functools import cached_property
-from tools.exposure import spatial_join_pampa, buffer_cut
-from tools.adaptative_cap import normalized_proximity_index, imput_missing_data_distance_based
+from tools.exposure import spatial_join_pampa, buffer_cut, estrutura_fundiaria_sum
+from tools.adaptative_cap import (
+    normalized_proximity_index, 
+    imput_missing_data_distance_based,
+    gerar_representividade)
 
 mp = MapBiomas()
 
@@ -26,7 +29,8 @@ class Analysis(GeoPackage):
         'dist_buf'
         ],
     forest_list: list[int] = mp.natural_classes,
-    non_forest_list: list[int] = mp.human_classes):
+    non_forest_list: list[int] = mp.human_classes
+    ):
         super().__init__()
         self.layer = layer
         self.year_i = year_i
@@ -47,6 +51,8 @@ class Analysis(GeoPackage):
         self.uhe = self.read_layer('uhe')
         self.roads = self.read_layer('roads')
         self._cols_to_keep = column_list
+        self.forest_list = forest_list
+        self.non_forest_lit = non_forest_list
 
     def count_etnia_bioma(self, save: bool = True):
         data = self.gdf.groupby(['bioma', 'etnia_nome']).size()
@@ -83,3 +89,24 @@ class Analysis(GeoPackage):
         gdf = gdf[['pol_id', 'txalfabeti_imputed']]
         return gdf
     
+    @cached_property
+    def pop_ti(self):
+        gdf = self.read_layer('pop_indigena_mun')
+        gdf['mun_id'] = gdf.index
+        gdf['PessInd'] = gdf['PessInd'].fillna(0).astype(int)
+        gdf['pop_indigena'] = gdf['PessInd'].mask(gdf['PessInd'] < 0)
+        gdf['PopIndEmT']= gdf['PessIndEmT'].fillna(0).astype(int)
+        gdf['pop_indigena_ti'] = gdf['PessIndEmT'].mask(gdf['PessIndEmT'] < 0)
+        gdf['PopResid'] = gdf['PopResid'].fillna(0).astype(int)
+        gdf['pop_total'] = gdf['PopResid'].mask(gdf['PopResid'] < 0)
+        gdf['perc_indigena'] = gdf['pop_indigena'] / gdf['pop_total']
+        gdf['perc_em_ti'] = gdf['pop_indigena_ti'] / gdf['pop_indigena']
+        gdf = gerar_representividade(self.gdf, gdf)
+        gdf = gdf[['pol_id', 'IR_municipal_corrigido_avg']].rename(columns={"IR_municipal_corrigido_avg": "rep_index"})
+        return gdf
+    
+    @cached_property
+    def car(self):
+        gdf = self.read_layer('sicar_rs')
+        gdf = estrutura_fundiaria_sum(self.buffer_gdf, gdf)
+        return gdf

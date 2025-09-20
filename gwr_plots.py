@@ -379,9 +379,9 @@ def example_usage():
 if __name__ == '__main__':
     from models.gpkg import GeoPackage
     gpkg = GeoPackage()
-    gdf = gpkg.read_layer('vindex_1985_2023_entrega')
+    gdf = gpkg.read_layer('vindex_1985_2000_godmode')
     gdf.geometry = gdf.geometry.buffer(gdf.dist_buf)
-    gdf['soybean'] = gdf['soybean_ex'] + gdf['soybean_se']
+    gdf['grass'] = gdf['grassland_se'] + gdf['grassland_ex']
     # gdf = gdf[gdf['vulnerability_index'] > 0.5]
     coords = np.array(list(zip(gdf.centroid.x, gdf.centroid.y)))
-    run_complete_gwr_analysis(gdf, 'vulnerability_index', ['est_fundiaria', 'soybean'], coords)
+    run_complete_gwr_analysis(gdf, 'vulnerability_index', ['regeneration_%_total'], coords)

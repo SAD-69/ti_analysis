@@ -13,14 +13,15 @@ fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 axes = axes.flatten()
 
 gpkg = GeoPackage()
-gdf = gpkg.read_layer('vindex_1985_2023_entrega')
+gdf = gpkg.read_layer('vindex_1985_2023_godmode')
 gdf.geometry = gdf.geometry.buffer(gdf.dist_buf)
 gdf['soybean'] = gdf['soybean_ex'] + gdf['soybean_se']
 gdf['agropec'] = gdf['agropec_ex'] + gdf['agropec_se']
 gdf['degeneration_%'] = gdf['degeneration_%_ex'] + gdf['degeneration_%_se']
+gdf['mining'] = gdf['mining_threat_area_ratio_se'] + gdf['mining_threat_area_ratio_ex']
 # gdf.dropna(subset=['TxAlfabetI'], inplace=True)
 y_col = 'vulnerability_index'
-cols = ['est_fundiaria', 'soybean']
+cols = ['regeneration_%_total']
 # Variáveis dependente (y) e independentes (X)
 y = gdf[y_col].values.reshape(-1,1)
 X = gdf[cols].values

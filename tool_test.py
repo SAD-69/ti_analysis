@@ -32,7 +32,7 @@ def run(year_0: int, year_f: int):
     raster_2023 = f"data/ti_lulc_{year_f}_reproject.tif"
     mp = MapBiomas()
     gpkg = GeoPackage()
-    
+    name_ti = gpkg.read_layer('ind_represent')
     status_map = {
         "Regularizada": 1,
         "Declarada": 0.75,
@@ -44,10 +44,11 @@ def run(year_0: int, year_f: int):
     gdf = gpkg.read_layer('ti_all_revisada_v1')
     gdf['status_fundiario'] = gdf['fase_ti'].map(status_map)
     gdf['pol_id'] = gdf.index
-    gdf = gdf.rename(columns={'TI': 'nome_ti'})
+    gdf = pd.merge(gdf, name_ti[['pol_id', 'nome_ti']], on='pol_id', how='left')
+    # gdf = gdf.rename(columns={'TI': 'nome_ti'})
 
     # BIOMAS
-    biomas = gpkg.read_layer('biomas_rs_faixa_trans_final')
+    biomas = gpkg.read_layer('biomas_rs_faixa_trans')
     gdf = spatial_join_pampa(gdf, biomas)
 
     inst_gdf = gpkg.read_layer('instituicoes_indigena')
@@ -79,6 +80,8 @@ def run(year_0: int, year_f: int):
 
     # Indice representatividade
     ir_gdf = gerar_representividade(gdf, pop_ti)
+    
+    # gpkg.save_layer(ir_gdf[['pol_id', 'nome_ti', 'etnia_nome', 'bioma', 'fonte', 'source','geometry', 'pop_part_final_corrigido', 'IR_municipal_corrigido', 'IR_global']])
     # print(ir_gdf)
     ir_gdf = ir_gdf[['pol_id', 'IR_municipal_corrigido_avg']].rename(columns={"IR_municipal_corrigido_avg": "rep_index"})
 
@@ -221,7 +224,7 @@ def run(year_0: int, year_f: int):
     df['ca_category_norm'] = pd.qcut(df['ca_score'], q=bins, labels=ca_labels)
     df['se_category_norm'] = pd.qcut(df['se_score'], q=bins, labels=labels)
     df['ex_category_norm'] = pd.qcut(df['ex_score'], q=bins, labels=labels)
-    gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_entrega')
+    gpkg.save_layer(df, f'vindex_{year_0}_{year_f}_godmode')
 
     print("NORMALIZED DATA")
     print("="*80)
